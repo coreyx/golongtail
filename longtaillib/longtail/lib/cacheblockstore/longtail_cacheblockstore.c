@@ -153,7 +153,26 @@ static int CacheBlockStore_PutStoredBlock(
 
 static int CacheBlockStore_PreflightGet(struct Longtail_BlockStoreAPI* block_store_api, uint64_t block_count, const TLongtail_Hash* block_hashes, const uint32_t* block_ref_counts)
 {
-    return 0;
+    LONGTAIL_LOG(LONGTAIL_LOG_LEVEL_INFO, "CacheBlockStore_PreflightGet(%p, %u %p, %p)", block_store_api, block_count, block_hashes, block_ref_counts)
+    LONGTAIL_VALIDATE_INPUT(block_store_api, return EINVAL)
+    LONGTAIL_VALIDATE_INPUT(block_count == 0 || block_hashes != 0, return EINVAL)
+    LONGTAIL_VALIDATE_INPUT(block_count == 0 || block_ref_counts != 0, return EINVAL)
+    struct CacheBlockStoreAPI* api = (struct CacheBlockStoreAPI*)block_store_api;
+    int err = api->m_LocalBlockStoreAPI->PreflightGet(
+        api->m_LocalBlockStoreAPI,
+        block_count,
+        block_hashes,
+        block_ref_counts);
+    if (err)
+    {
+        return err;
+    }
+    err = api->m_RemoteBlockStoreAPI->PreflightGet(
+        api->m_RemoteBlockStoreAPI,
+        block_count,
+        block_hashes,
+        block_ref_counts);
+    return err;
 }
 
 struct OnGetStoredBlockPutLocalComplete_API
@@ -430,7 +449,7 @@ static int CacheBlockStore_GetStats(struct Longtail_BlockStoreAPI* block_store_a
 static void CacheBlockStore_Dispose(struct Longtail_API* api)
 {
     LONGTAIL_LOG(LONGTAIL_LOG_LEVEL_INFO, "CacheBlockStore_Dispose(%p)", api)
-    LONGTAIL_FATAL_ASSERT(api, return)
+    LONGTAIL_VALIDATE_INPUT(api, return)
 
     struct CacheBlockStoreAPI* cacheblockstore_api = (struct CacheBlockStoreAPI*)api;
     Longtail_Free(cacheblockstore_api);
@@ -477,8 +496,8 @@ struct Longtail_BlockStoreAPI* Longtail_CreateCacheBlockStoreAPI(
     struct Longtail_BlockStoreAPI* remote_block_store)
 {
     LONGTAIL_LOG(LONGTAIL_LOG_LEVEL_INFO, "Longtail_CreateCacheBlockStoreAPI(%p, %p)", local_block_store, remote_block_store)
-    LONGTAIL_FATAL_ASSERT(local_block_store, return 0)
-    LONGTAIL_FATAL_ASSERT(remote_block_store, return 0)
+    LONGTAIL_VALIDATE_INPUT(local_block_store, return 0)
+    LONGTAIL_VALIDATE_INPUT(remote_block_store, return 0)
 
     size_t api_size = sizeof(struct CacheBlockStoreAPI);
     struct CacheBlockStoreAPI* api = (struct CacheBlockStoreAPI*)Longtail_Alloc(api_size);
@@ -490,9 +509,14 @@ struct Longtail_BlockStoreAPI* Longtail_CreateCacheBlockStoreAPI(
             ENOMEM)
         return 0;
     }
-    CacheBlockStore_Init(
+    int err = CacheBlockStore_Init(
         api,
         local_block_store,
         remote_block_store);
+    if (err)
+    {
+        Longtail_Free(api);
+        return 0;
+    }
     return &api->m_BlockStoreAPI;
 }

@@ -388,6 +388,10 @@ static int FSBlockStore_PutStoredBlock(
 
 static int FSBlockStore_PreflightGet(struct Longtail_BlockStoreAPI* block_store_api, uint64_t block_count, const TLongtail_Hash* block_hashes, const uint32_t* block_ref_counts)
 {
+    LONGTAIL_LOG(LONGTAIL_LOG_LEVEL_INFO, "FSBlockStore_PreflightGet(%p, %u %p, %p)", block_store_api, block_count, block_hashes, block_ref_counts)
+    LONGTAIL_VALIDATE_INPUT(block_store_api, return EINVAL)
+    LONGTAIL_VALIDATE_INPUT(block_count == 0 || block_hashes != 0, return EINVAL)
+    LONGTAIL_VALIDATE_INPUT(block_count == 0 || block_ref_counts != 0, return EINVAL)
     return 0;
 }
 
@@ -619,6 +623,7 @@ struct Longtail_BlockStoreAPI* Longtail_CreateFSBlockStoreAPI(
     struct Longtail_StorageAPI* storage_api,
     const char* content_path)
 {
+    LONGTAIL_LOG(LONGTAIL_LOG_LEVEL_INFO, "Longtail_CreateFSBlockStoreAPI(%p, %s)", storage_api, content_path)
     LONGTAIL_VALIDATE_INPUT(storage_api != 0, return 0)
     LONGTAIL_VALIDATE_INPUT(content_path != 0, return 0)
     size_t api_size = sizeof(struct FSBlockStoreAPI);

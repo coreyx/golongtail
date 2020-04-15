@@ -286,6 +286,7 @@ func gcsWorker(
 	stopMessages <-chan stopMessage) error {
 	client, err := storage.NewClient(ctx)
 	if err != nil {
+		log.Printf("storage.NewClient(ctx) failed with %q\n", err)
 		s.workerWaitGroup.Done()
 		return errors.Wrap(err, u.String())
 	}
@@ -312,6 +313,7 @@ func gcsWorker(
 		}
 	}
 
+	log.Printf("gcsWorker() flushing operations\n")
 	select {
 	case putMsg := <-putBlockMessages:
 		errno := putStoredBlock(ctx, s, bucket, contentIndexMessages, putMsg.storedBlock)
@@ -323,6 +325,7 @@ func gcsWorker(
 	}
 
 	s.workerWaitGroup.Done()
+	log.Printf("gcsWorker() done\n")
 	return nil
 }
 
@@ -410,6 +413,7 @@ func contentIndexWorker(
 	client, err := storage.NewClient(ctx)
 	if err != nil {
 		s.indexWorkerWaitGroup.Done()
+		log.Printf("storage.NewClient(ctx) failed with %q\n", err)
 		return errors.Wrap(err, u.String())
 	}
 	bucketName := u.Host
@@ -440,6 +444,7 @@ func contentIndexWorker(
 			s.maxChunksPerBlock)
 		if err != nil {
 			s.indexWorkerWaitGroup.Done()
+			log.Printf("longtaillib.CreateContentIndex() failed with %q\n", err)
 			return err
 		}
 	}
@@ -457,6 +462,7 @@ func contentIndexWorker(
 		s.maxChunksPerBlock)
 	if err != nil {
 		s.indexWorkerWaitGroup.Done()
+		log.Printf("longtaillib.CreateContentIndex() failed with %q\n", err)
 		return err
 	}
 
@@ -492,6 +498,7 @@ func contentIndexWorker(
 		}
 	}
 
+	log.Printf("contentIndexWorker() flushing operations\n")
 	select {
 	case contentIndexMsg := <-contentIndexMessages:
 		newAddedContentIndex, err := longtaillib.AddContentIndex(addedContentIndex, contentIndexMsg.contentIndex)
@@ -505,12 +512,14 @@ func contentIndexWorker(
 	}
 
 	if addedContentIndex.GetBlockCount() > 0 {
+		log.Printf("contentIndexWorker() updating remote content index\n", err)
 		err := updateRemoteContentIndex(ctx, bucket, s.prefix, addedContentIndex)
 		if err != nil {
 			log.Printf("WARNING: Failed to write store content index: %q", err)
 		}
 	}
 	s.indexWorkerWaitGroup.Done()
+	log.Printf("contentIndexWorker() done\n")
 	return nil
 }
 
@@ -595,11 +604,16 @@ func (s *gcsBlockStore) GetStats() (longtaillib.BlockStoreStats, int) {
 
 // Close ...
 func (s *gcsBlockStore) Close() {
+	log.Printf("(s *gcsBlockStore) Close()\n")
 	for i := 0; i < s.workerCount; i++ {
+		log.Printf("s.workerStopChan <- stopMessage{}\n")
 		s.workerStopChan <- stopMessage{}
 	}
+	log.Printf("s.workerWaitGroup.Wait()\n")
 	s.workerWaitGroup.Wait()
+	log.Printf("s.indexStopChan <- stopMessage{}\n")
 	s.indexStopChan <- stopMessage{}
+	log.Printf("s.indexWorkerWaitGroup.Wait()\n")
 	s.indexWorkerWaitGroup.Wait()
 	if s.outFinalStats != nil {
 		*s.outFinalStats = s.stats

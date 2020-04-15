@@ -198,7 +198,16 @@ static int CompressBlockStore_PutStoredBlock(
 
 static int CompressBlockStore_PreflightGet(struct Longtail_BlockStoreAPI* block_store_api, uint64_t block_count, const TLongtail_Hash* block_hashes, const uint32_t* block_ref_counts)
 {
-    return 0;
+    LONGTAIL_VALIDATE_INPUT(block_store_api, return EINVAL)
+    LONGTAIL_VALIDATE_INPUT(block_hashes, return EINVAL)
+    LONGTAIL_VALIDATE_INPUT(block_ref_counts, return EINVAL)
+    LONGTAIL_LOG(LONGTAIL_LOG_LEVEL_INFO, "ShareBlockStore_PreflightGet(%p, 0x%" PRIx64 ", %p, %p)", block_store_api, block_count, block_hashes, block_ref_counts)
+    struct CompressBlockStoreAPI* api = (struct CompressBlockStoreAPI*)block_store_api;
+    return api->m_BackingBlockStore->PreflightGet(
+        api->m_BackingBlockStore,
+        block_count,
+        block_hashes,
+        block_ref_counts);
 }
 
 static int DecompressBlock(
@@ -415,7 +424,7 @@ static int CompressBlockStore_GetStats(struct Longtail_BlockStoreAPI* block_stor
 static void CompressBlockStore_Dispose(struct Longtail_API* api)
 {
     LONGTAIL_LOG(LONGTAIL_LOG_LEVEL_INFO, "CompressBlockStore_Dispose(%p)", api)
-    LONGTAIL_FATAL_ASSERT(api, return)
+    LONGTAIL_VALIDATE_INPUT(api, return)
 
     struct CompressBlockStoreAPI* block_store = (struct CompressBlockStoreAPI*)api;
     Longtail_Free(block_store);
@@ -475,10 +484,15 @@ struct Longtail_BlockStoreAPI* Longtail_CreateCompressBlockStoreAPI(
             ENOMEM)
         return 0;
     }
-    CompressBlockStore_Init(
+    int err = CompressBlockStore_Init(
         api,
         backing_block_store,
         compression_registry);
+    if (err)
+    {
+        Longtail_Free(api);
+        return 0;
+    }
     return &api->m_BlockStoreAPI;
 }
 
@@ -497,7 +511,8 @@ struct Default_CompressionRegistry
 
 static void DefaultCompressionRegistry_Dispose(struct Longtail_API* api)
 {
-    LONGTAIL_FATAL_ASSERT(api, return);
+    LONGTAIL_LOG(LONGTAIL_LOG_LEVEL_INFO, "DefaultCompressionRegistry_Dispose(%p)", api)
+    LONGTAIL_VALIDATE_INPUT(api, return);
     struct Longtail_CompressionAPI* last_api = 0;
     struct Default_CompressionRegistry* default_compression_registry = (struct Default_CompressionRegistry*)api;
     for (uint32_t c = 0; c < default_compression_registry->m_Count; ++c)
@@ -538,6 +553,7 @@ struct Longtail_CompressionRegistryAPI* Longtail_CreateDefaultCompressionRegistr
     const struct Longtail_CompressionAPI** compression_apis,
     const uint32_t* compression_settings)
 {
+    LONGTAIL_LOG(LONGTAIL_LOG_LEVEL_INFO, "Longtail_CreateDefaultCompressionRegistry(%u, %p, %p, %p)", compression_type_count, compression_types, compression_apis, compression_settings)
     LONGTAIL_VALIDATE_INPUT(compression_types, return 0);
     LONGTAIL_VALIDATE_INPUT(compression_apis, return 0);
     LONGTAIL_VALIDATE_INPUT(compression_settings, return 0);
