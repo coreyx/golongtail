@@ -630,6 +630,7 @@ func downSyncVersion(
 	defer localFS.Dispose()
 
 	var localIndexStore longtaillib.Longtail_BlockStoreAPI
+	var threadedIndexStore longtaillib.Longtail_BlockStoreAPI
 	var cacheBlockStore longtaillib.Longtail_BlockStoreAPI
 	var compressBlockStore longtaillib.Longtail_BlockStoreAPI
 	var indexStore longtaillib.Longtail_BlockStoreAPI
@@ -637,7 +638,9 @@ func downSyncVersion(
 	if localCachePath != nil && len(*localCachePath) > 0 {
 		localIndexStore = longtaillib.CreateFSBlockStore(jobs, localFS, *localCachePath, 8388608, 1024)
 
-		cacheBlockStore = longtaillib.CreateCacheBlockStore(jobs, localIndexStore, remoteIndexStore)
+		threadedIndexStore = longtaillib.CreateThreadedBlockStore(localIndexStore, 8, -1)
+
+		cacheBlockStore = longtaillib.CreateCacheBlockStore(jobs, threadedIndexStore, remoteIndexStore)
 
 		compressBlockStore = longtaillib.CreateCompressBlockStore(cacheBlockStore, creg)
 	} else {
@@ -646,6 +649,7 @@ func downSyncVersion(
 
 	defer cacheBlockStore.Dispose()
 	defer localIndexStore.Dispose()
+	defer threadedIndexStore.Dispose()
 	defer compressBlockStore.Dispose()
 
 	indexStore = longtaillib.CreateShareBlockStore(compressBlockStore)
