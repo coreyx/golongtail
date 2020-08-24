@@ -89,9 +89,10 @@ func putStoredBlock(
 	contentIndexMessages chan<- contentIndexMessage,
 	storedBlock longtaillib.Longtail_StoredBlock) int {
 
-	atomic.AddUint64(&s.stats.StatU64[longtaillib.Longtail_BlockStoreAPI_StatU64_PutStoredBlock_Count], 1)
-
 	blockIndex := storedBlock.GetBlockIndex()
+	atomic.AddUint64(&s.stats.StatU64[longtaillib.Longtail_BlockStoreAPI_StatU64_PutStoredBlock_Count], 1)
+	atomic.AddUint64(&s.stats.StatU64[longtaillib.Longtail_BlockStoreAPI_StatU64_PutStoredBlock_Chunk_Count], (uint64)(blockIndex.GetChunkCount()))
+
 	blockHash := blockIndex.GetBlockHash()
 	key := getBlockPath("chunks", blockHash)
 	objHandle, err := blobClient.NewObject(key)
@@ -127,9 +128,7 @@ func putStoredBlock(
 			atomic.AddUint64(&s.stats.StatU64[longtaillib.Longtail_BlockStoreAPI_StatU64_PutStoredBlock_FailCount], 1)
 			return longtaillib.EIO
 		}
-
 		atomic.AddUint64(&s.stats.StatU64[longtaillib.Longtail_BlockStoreAPI_StatU64_PutStoredBlock_Byte_Count], (uint64)(len(blob)))
-		atomic.AddUint64(&s.stats.StatU64[longtaillib.Longtail_BlockStoreAPI_StatU64_PutStoredBlock_Chunk_Count], (uint64)(blockIndex.GetChunkCount()))
 	}
 
 	newBlocks := []longtaillib.Longtail_BlockIndex{blockIndex}
@@ -656,6 +655,7 @@ func contentIndexWorker(
 			contentIndexMsg.contentIndex.Dispose()
 		case retargetContentMessage := <-retargetContentMessages:
 			received += 1
+			atomic.AddUint64(&s.stats.StatU64[longtaillib.Longtail_BlockStoreAPI_StatU64_RetargetContent_Count], 1)
 			fullContentIndex, errno := longtaillib.MergeContentIndex(s.jobAPI, contentIndex, addedContentIndex)
 			if errno != 0 {
 				retargetContentMessage.asyncCompleteAPI.OnComplete(longtaillib.Longtail_ContentIndex{}, errno)
@@ -685,6 +685,7 @@ func contentIndexWorker(
 				addedContentIndex = newAddedContentIndex
 				contentIndexMsg.contentIndex.Dispose()
 			case retargetContentMessage := <-retargetContentMessages:
+				atomic.AddUint64(&s.stats.StatU64[longtaillib.Longtail_BlockStoreAPI_StatU64_RetargetContent_Count], 1)
 				fullContentIndex, errno := longtaillib.MergeContentIndex(s.jobAPI, contentIndex, addedContentIndex)
 				if errno != 0 {
 					retargetContentMessage.asyncCompleteAPI.OnComplete(longtaillib.Longtail_ContentIndex{}, errno)
@@ -811,6 +812,7 @@ func (s *remoteStore) PutStoredBlock(storedBlock longtaillib.Longtail_StoredBloc
 
 // PreflightGet ...
 func (s *remoteStore) PreflightGet(contentIndex longtaillib.Longtail_ContentIndex) int {
+	atomic.AddUint64(&s.stats.StatU64[longtaillib.Longtail_BlockStoreAPI_StatU64_PreflightGet_Count], 1)
 	blockHashes := contentIndex.GetBlockHashes()
 	blockCount := uint64(len(blockHashes))
 	for b := uint64(0); b < blockCount; b++ {
@@ -835,10 +837,16 @@ func (s *remoteStore) RetargetContent(
 
 // GetStats ...
 func (s *remoteStore) GetStats() (longtaillib.BlockStoreStats, int) {
-	return s.stats, 0
+	atomic.AddUint64(&s.stats.StatU64[longtaillib.Longtail_BlockStoreAPI_StatU64_GetStats_Count], 1)
+	var stats longtaillib.BlockStoreStats
+	for i := 0; i < longtaillib.Longtail_BlockStoreAPI_StatU64_Count; i++ {
+		stats.StatU64[i] = s.stats.StatU64[i]
+	}
+	return stats, 0
 }
 
 func (s *remoteStore) Flush(asyncCompleteAPI longtaillib.Longtail_AsyncFlushAPI) int {
+	atomic.AddUint64(&s.stats.StatU64[longtaillib.Longtail_BlockStoreAPI_StatU64_Flush_Count], 1)
 	go func() {
 		any_errno := 0
 		for i := 0; i < s.workerCount; i++ {
