@@ -9,6 +9,7 @@ require (
 	github.com/alecthomas/units v0.0.0-20190924025748-f65c72e2690d // indirect
 	github.com/stretchr/testify v1.5.1 // indirect
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
+	fyne.io/fyne v1.3.3
 )
 
 replace github.com/DanEngelbrecht/golongtail/longtailstorelib => ../../longtailstorelib

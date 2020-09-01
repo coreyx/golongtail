@@ -11,6 +11,9 @@ import (
 	"strings"
 	"sync"
 
+	"fyne.io/fyne/app"
+	"fyne.io/fyne/widget"
+
 	"github.com/DanEngelbrecht/golongtail/longtaillib"
 	"github.com/DanEngelbrecht/golongtail/longtailstorelib"
 
@@ -1607,11 +1610,29 @@ func lsVersionIndex(
 	return nil
 }
 
+func openUI() error {
+	a := app.New()
+	w := a.NewWindow("Hello")
+
+	hello := widget.NewLabel("Hello Fyne!")
+	w.SetContent(widget.NewVBox(
+		hello,
+		widget.NewButton("Hi!", func() {
+			hello.SetText("Welcome :)")
+		}),
+	))
+
+	w.ShowAndRun()
+	return nil
+}
+
 var (
 	logLevel           = kingpin.Flag("log-level", "Log level").Default("warn").Enum("debug", "info", "warn", "error")
 	showStats          = kingpin.Flag("show-stats", "Output brief stats summary").Bool()
 	includeFilterRegEx = kingpin.Flag("include-filter-regex", "Optional include regex filter for assets in --source-path on upsync and --target-path on downsync. Separate regexes with **").String()
 	excludeFilterRegEx = kingpin.Flag("exclude-filter-regex", "Optional exclude regex filter for assets in --source-path on upsync and --target-path on downsync. Separate regexes with **").String()
+
+	commandUI = kingpin.Command("ui", "Run UI")
 
 	commandUpsync           = kingpin.Command("upsync", "Upload a folder")
 	commandUpsyncStorageURI = commandUpsync.Flag("storage-uri", "Storage URI (only local file system and GCS bucket URI supported)").Required().String()
@@ -1702,6 +1723,11 @@ func main() {
 	defer longtaillib.SetAssert(nil)
 
 	switch kingpin.Parse() {
+	case commandUI.FullCommand():
+		err := openUI()
+		if err != nil {
+			log.Fatal(err)
+		}
 	case commandUpsync.FullCommand():
 		err := upSyncVersion(
 			*commandUpsyncStorageURI,
