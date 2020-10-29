@@ -428,6 +428,7 @@ func upSyncVersion(
 	hashAlgorithm *string,
 	includeFilterRegEx *string,
 	excludeFilterRegEx *string,
+	minReuseRate uint8,
 	showStats bool) error {
 
 	var pathFilter longtaillib.Longtail_PathFilterAPI
@@ -555,15 +556,28 @@ func upSyncVersion(
 	}
 
 	defer existingRemoteContentIndex.Dispose()
+	var versionMissingContentIndex longtaillib.Longtail_ContentIndex
 
-	versionMissingContentIndex, errno := longtaillib.CreateMissingContent(
-		hash,
-		existingRemoteContentIndex,
-		vindex,
-		targetBlockSize,
-		maxChunksPerBlock)
-	if errno != 0 {
-		return fmt.Errorf("upSyncVersion: longtaillib.CreateMissingContent() failed with %s", longtaillib.ErrNoToDescription(errno))
+	if minReuseRate > 100 {
+		buffer, errno := longtaillib.WriteContentIndexToBuffer(versionContentIndex)
+		if errno != 0 {
+			return fmt.Errorf("upSyncVersion: longtaillib.WriteContentIndexToBuffer() failed with %s", longtaillib.ErrNoToDescription(errno))
+		}
+		versionMissingContentIndex, errno = longtaillib.ReadContentIndexFromBuffer(buffer)
+		if errno != 0 {
+			return fmt.Errorf("upSyncVersion: longtaillib.ReadContentIndexFromBuffer() failed with %s", longtaillib.ErrNoToDescription(errno))
+		}
+	} else {
+		// TODO: Different rates, requires API change in RetargetContent
+		versionMissingContentIndex, errno = longtaillib.CreateMissingContent(
+			hash,
+			existingRemoteContentIndex,
+			vindex,
+			targetBlockSize,
+			maxChunksPerBlock)
+		if errno != 0 {
+			return fmt.Errorf("upSyncVersion: longtaillib.CreateMissingContent() failed with %s", longtaillib.ErrNoToDescription(errno))
+		}
 	}
 	defer versionMissingContentIndex.Dispose()
 
@@ -1700,6 +1714,7 @@ var (
 	commandUpsyncSourceIndexPath         = commandUpsync.Flag("source-index-path", "Optional pre-computed index of source-path").String()
 	commandUpsyncTargetPath              = commandUpsync.Flag("target-path", "Target file uri").Required().String()
 	commandUpsyncVersionContentIndexPath = commandUpsync.Flag("version-content-index-path", "Version local content index file uri").String()
+	commandUpsyncReuseMinRate            = commandUpsync.Flag("reuse-min-rate", "Minimum rate a blocks chunks needs to be used for the block to be picked up").Uint8()
 	commandUpsyncCompression             = commandUpsync.Flag("compression-algorithm", "compression algorithm: none, brotli[_min|_max], brotli_text[_min|_max], lz4, ztd[_min|_max]").
 						Default("zstd").
 						Enum(
@@ -1797,6 +1812,7 @@ func main() {
 			commandUpsyncHashing,
 			includeFilterRegEx,
 			excludeFilterRegEx,
+			*commandUpsyncReuseMinRate,
 			*showStats)
 		if err != nil {
 			log.Fatal(err)
