@@ -97,18 +97,6 @@ func CreateProgress(task string) longtaillib.Longtail_ProgressAPI {
 	return longtaillib.CreateRateLimitedProgressAPI(baseProgress, 5)
 }
 
-type getIndexCompletionAPI struct {
-	wg           sync.WaitGroup
-	contentIndex longtaillib.Longtail_ContentIndex
-	err          int
-}
-
-func (a *getIndexCompletionAPI) OnComplete(contentIndex longtaillib.Longtail_ContentIndex, err int) {
-	a.err = err
-	a.contentIndex = contentIndex
-	a.wg.Done()
-}
-
 type getExistingContentCompletionAPI struct {
 	wg           sync.WaitGroup
 	contentIndex longtaillib.Longtail_ContentIndex
@@ -581,7 +569,6 @@ func upSyncVersion(
 	sourceFolderPath string,
 	sourceIndexPath *string,
 	targetFilePath string,
-	versionContentIndexPath *string,
 	targetChunkSize uint32,
 	targetBlockSize uint32,
 	maxChunksPerBlock uint32,
@@ -743,28 +730,6 @@ func upSyncVersion(
 	indexStoreStats, errno := indexStore.GetStats()
 	remoteStoreStats, errno := remoteStore.GetStats()
 
-	writeVersionContentIndexStartTime := time.Now()
-	if versionContentIndexPath != nil && len(*versionContentIndexPath) > 0 {
-		versionLocalContentIndex, errno := longtaillib.AddContentIndex(
-			existingRemoteContentIndex,
-			versionMissingContentIndex)
-		if errno != 0 {
-			return errors.Wrapf(longtaillib.ErrnoToError(errno, longtaillib.ErrEIO), "upSyncVersion: longtaillib.MergeContentIndex() failed")
-		}
-		defer versionLocalContentIndex.Dispose()
-
-		cbuffer, errno := longtaillib.WriteContentIndexToBuffer(versionLocalContentIndex)
-		if errno != 0 {
-			return errors.Wrapf(longtaillib.ErrnoToError(errno, longtaillib.ErrEIO), "upSyncVersion: longtaillib.WriteContentIndexToBuffer() failed")
-		}
-
-		err = writeToURI(*versionContentIndexPath, cbuffer)
-		if err != nil {
-			return err
-		}
-	}
-	writeVersionContentIndexTime := time.Since(writeVersionContentIndexStartTime)
-
 	writeVersionIndexStartTime := time.Now()
 	vbuffer, errno := longtaillib.WriteVersionIndexToBuffer(vindex)
 	if errno != 0 {
@@ -783,9 +748,6 @@ func upSyncVersion(
 		log.Printf("Get missing content:         %s", getMissingContentTime)
 		log.Printf("Write version content:       %s", writeContentTime)
 		log.Printf("Flush:                       %s", flushTime)
-		if versionContentIndexPath != nil && len(*versionContentIndexPath) > 0 {
-			log.Printf("Write version content index: %s", writeVersionContentIndexTime)
-		}
 		log.Printf("Write version index:         %s", writeVersionIndexTime)
 		log.Printf("Execution:                   %s", executionTime)
 	}
@@ -1292,38 +1254,6 @@ func showVersionIndex(versionIndexPath string, compact bool) error {
 		fmt.Printf("Average Chunk Size:  %d   (%s)\n", averageChunkSize, byteCountBinary(uint64(averageChunkSize)))
 		fmt.Printf("Smallest Chunk Size: %d   (%s)\n", smallestChunkSize, byteCountBinary(uint64(smallestChunkSize)))
 		fmt.Printf("Largest Chunk Size:  %d   (%s)\n", largestChunkSize, byteCountBinary(uint64(largestChunkSize)))
-	}
-
-	return nil
-}
-
-func showContentIndex(contentIndexPath string, compact bool) error {
-	vbuffer, err := readFromURI(contentIndexPath)
-	if err != nil {
-		return err
-	}
-	contentIndex, errno := longtaillib.ReadContentIndexFromBuffer(vbuffer)
-	if errno != 0 {
-		return errors.Wrapf(longtaillib.ErrnoToError(errno, longtaillib.ErrEIO), "downSyncVersion: longtaillib.ReadContentIndexFromBuffer() failed")
-	}
-	defer contentIndex.Dispose()
-
-	if compact {
-		fmt.Printf("%s\t%d\t%s\t%d\t%d\t%d\t%d\n",
-			contentIndexPath,
-			contentIndex.GetVersion(),
-			hashIdentifierToString(contentIndex.GetHashIdentifier()),
-			contentIndex.GetMaxBlockSize(),
-			contentIndex.GetMaxChunksPerBlock(),
-			contentIndex.GetBlockCount(),
-			contentIndex.GetChunkCount())
-	} else {
-		fmt.Printf("Version:             %d\n", contentIndex.GetVersion())
-		fmt.Printf("Hash Identifier:     %s\n", hashIdentifierToString(contentIndex.GetHashIdentifier()))
-		fmt.Printf("Max Block Size:      %d\n", contentIndex.GetMaxBlockSize())
-		fmt.Printf("Max Chunks Per Block %d\n", contentIndex.GetMaxChunksPerBlock())
-		fmt.Printf("Block Count:         %d   (%s)\n", contentIndex.GetBlockCount(), byteCountDecimal(uint64(contentIndex.GetBlockCount())))
-		fmt.Printf("Chunk Count:         %d   (%s)\n", contentIndex.GetChunkCount(), byteCountDecimal(uint64(contentIndex.GetChunkCount())))
 	}
 
 	return nil
@@ -2022,16 +1952,15 @@ var (
 	commandUpsyncHashing    = commandUpsync.Flag("hash-algorithm", "upsync hash algorithm: blake2, blake3, meow").
 				Default("blake3").
 				Enum("meow", "blake2", "blake3")
-	commandUpsyncTargetChunkSize         = commandUpsync.Flag("target-chunk-size", "Target chunk size").Default("32768").Uint32()
-	commandUpsyncTargetBlockSize         = commandUpsync.Flag("target-block-size", "Target block size").Default("8388608").Uint32()
-	commandUpsyncMaxChunksPerBlock       = commandUpsync.Flag("max-chunks-per-block", "Max chunks per block").Default("1024").Uint32()
-	commandUpsyncSourcePath              = commandUpsync.Flag("source-path", "Source folder path").Required().String()
-	commandUpsyncSourceIndexPath         = commandUpsync.Flag("source-index-path", "Optional pre-computed index of source-path").String()
-	commandUpsyncTargetPath              = commandUpsync.Flag("target-path", "Target file uri").Required().String()
-	commandUpsyncVersionContentIndexPath = commandUpsync.Flag("version-content-index-path", "Version local content index file uri").String()
-	commandUpsyncCompression             = commandUpsync.Flag("compression-algorithm", "compression algorithm: none, brotli[_min|_max], brotli_text[_min|_max], lz4, ztd[_min|_max]").
-						Default("zstd").
-						Enum(
+	commandUpsyncTargetChunkSize   = commandUpsync.Flag("target-chunk-size", "Target chunk size").Default("32768").Uint32()
+	commandUpsyncTargetBlockSize   = commandUpsync.Flag("target-block-size", "Target block size").Default("8388608").Uint32()
+	commandUpsyncMaxChunksPerBlock = commandUpsync.Flag("max-chunks-per-block", "Max chunks per block").Default("1024").Uint32()
+	commandUpsyncSourcePath        = commandUpsync.Flag("source-path", "Source folder path").Required().String()
+	commandUpsyncSourceIndexPath   = commandUpsync.Flag("source-index-path", "Optional pre-computed index of source-path").String()
+	commandUpsyncTargetPath        = commandUpsync.Flag("target-path", "Target file uri").Required().String()
+	commandUpsyncCompression       = commandUpsync.Flag("compression-algorithm", "compression algorithm: none, brotli[_min|_max], brotli_text[_min|_max], lz4, ztd[_min|_max]").
+					Default("zstd").
+					Enum(
 			"none",
 			"brotli",
 			"brotli_min",
@@ -2066,10 +1995,6 @@ var (
 	commandPrintVersionIndex        = kingpin.Command("printVersionIndex", "Print info about a file")
 	commandPrintVersionIndexPath    = commandPrintVersionIndex.Flag("version-index-path", "Path to a version index file").Required().String()
 	commandPrintVersionIndexCompact = commandPrintVersionIndex.Flag("compact", "Show info in compact layout").Bool()
-
-	commandPrintContentIndex        = kingpin.Command("printContentIndex", "Print info about a file")
-	commandPrintContentIndexPath    = commandPrintContentIndex.Flag("content-index-path", "Path to a content index file").Required().String()
-	commandPrintContentIndexCompact = commandPrintContentIndex.Flag("compact", "Show info in compact layout").Bool()
 
 	commandPrintStoreIndex        = kingpin.Command("printStoreIndex", "Print info about a file")
 	commandPrintStoreIndexPath    = commandPrintStoreIndex.Flag("store-index-path", "Path to a store index file").Required().String()
@@ -2128,7 +2053,6 @@ func main() {
 			*commandUpsyncSourcePath,
 			commandUpsyncSourceIndexPath,
 			*commandUpsyncTargetPath,
-			commandUpsyncVersionContentIndexPath,
 			*commandUpsyncTargetChunkSize,
 			*commandUpsyncTargetBlockSize,
 			*commandUpsyncMaxChunksPerBlock,
@@ -2170,11 +2094,6 @@ func main() {
 		}
 	case commandPrintVersionIndex.FullCommand():
 		err := showVersionIndex(*commandPrintVersionIndexPath, *commandPrintVersionIndexCompact)
-		if err != nil {
-			log.Fatal(err)
-		}
-	case commandPrintContentIndex.FullCommand():
-		err := showContentIndex(*commandPrintContentIndexPath, *commandPrintContentIndexCompact)
 		if err != nil {
 			log.Fatal(err)
 		}

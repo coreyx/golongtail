@@ -1487,30 +1487,6 @@ func CreateContentIndex(
 	return Longtail_ContentIndex{cContentIndex: cindex}, 0
 }
 
-/*
-// CreateContentIndexFromDiff
-func CreateContentIndexFromDiff(
-	hashAPI Longtail_HashAPI,
-	versionIndex Longtail_VersionIndex,
-	versionDiff Longtail_VersionDiff,
-	maxBlockSize uint32,
-	maxChunksPerBlock uint32) (Longtail_ContentIndex, int) {
-
-	var cindex *C.struct_Longtail_ContentIndex
-	errno := C.Longtail_CreateContentIndexFromDiff(
-		hashAPI.cHashAPI,
-		versionIndex.cVersionIndex,
-		versionDiff.cVersionDiff,
-		C.uint32_t(maxBlockSize),
-		C.uint32_t(maxChunksPerBlock),
-		&cindex)
-	if errno != 0 {
-		return Longtail_ContentIndex{cContentIndex: nil}, int(errno)
-	}
-
-	return Longtail_ContentIndex{cContentIndex: cindex}, 0
-}
-*/
 // CreateContentIndexRaw ...
 func CreateContentIndexRaw(
 	hashAPI Longtail_HashAPI,
@@ -1559,50 +1535,6 @@ func CreateContentIndexRaw(
 		return Longtail_ContentIndex{cContentIndex: nil}, int(errno)
 	}
 
-	return Longtail_ContentIndex{cContentIndex: cindex}, 0
-}
-
-// CreateContentIndexFromBlocks ...
-func CreateContentIndexFromBlocks(
-	maxBlockSize uint32,
-	maxChunksPerBlock uint32,
-	blockIndexes []Longtail_BlockIndex) (Longtail_ContentIndex, int) {
-	rawBlockIndexes := make([]*C.struct_Longtail_BlockIndex, len(blockIndexes))
-	blockCount := len(blockIndexes)
-	for index, blockIndex := range blockIndexes {
-		rawBlockIndexes[index] = blockIndex.cBlockIndex
-	}
-	var cBlockIndexes unsafe.Pointer
-	if blockCount > 0 {
-		cBlockIndexes = unsafe.Pointer(&rawBlockIndexes[0])
-	}
-
-	var cindex *C.struct_Longtail_ContentIndex
-	errno := C.Longtail_CreateContentIndexFromBlocks(
-		C.uint32_t(maxBlockSize),
-		C.uint32_t(maxChunksPerBlock),
-		C.uint64_t(blockCount),
-		(**C.struct_Longtail_BlockIndex)(cBlockIndexes),
-		&cindex)
-	if errno != 0 {
-		return Longtail_ContentIndex{cContentIndex: nil}, int(errno)
-	}
-	return Longtail_ContentIndex{cContentIndex: cindex}, 0
-}
-
-func CreateContentIndexFromStoreIndex(
-	storeIndex Longtail_StoreIndex,
-	maxBlockSize uint32,
-	maxChunksPerBlock uint32) (Longtail_ContentIndex, int) {
-	var cindex *C.struct_Longtail_ContentIndex
-	errno := C.Longtail_CreateContentIndexFromStoreIndex(
-		storeIndex.cStoreIndex,
-		C.uint32_t(maxBlockSize),
-		C.uint32_t(maxChunksPerBlock),
-		&cindex)
-	if errno != 0 {
-		return Longtail_ContentIndex{cContentIndex: nil}, int(errno)
-	}
 	return Longtail_ContentIndex{cContentIndex: cindex}, 0
 }
 
@@ -1710,54 +1642,6 @@ func ReadStoreIndexFromBuffer(buffer []byte) (Longtail_StoreIndex, int) {
 		return Longtail_StoreIndex{cStoreIndex: nil}, int(errno)
 	}
 	return Longtail_StoreIndex{cStoreIndex: cindex}, 0
-}
-
-// WriteContentIndexToBuffer ...
-func WriteContentIndexToBuffer(index Longtail_ContentIndex) ([]byte, int) {
-	var buffer unsafe.Pointer
-	size := C.size_t(0)
-	errno := C.Longtail_WriteContentIndexToBuffer(index.cContentIndex, &buffer, &size)
-	if errno != 0 {
-		return nil, int(errno)
-	}
-	defer C.Longtail_Free(buffer)
-	bytes := C.GoBytes(buffer, C.int(size))
-	return bytes, 0
-}
-
-// WriteContentIndex ...
-func WriteContentIndex(storageAPI Longtail_StorageAPI, index Longtail_ContentIndex, path string) int {
-	cPath := C.CString(path)
-	defer C.free(unsafe.Pointer(cPath))
-	errno := C.Longtail_WriteContentIndex(storageAPI.cStorageAPI, index.cContentIndex, cPath)
-	if errno != 0 {
-		return int(errno)
-	}
-	return 0
-}
-
-// ReadContentIndexFromBuffer ...
-func ReadContentIndexFromBuffer(buffer []byte) (Longtail_ContentIndex, int) {
-	cBuffer := unsafe.Pointer(&buffer[0])
-	cSize := C.size_t(len(buffer))
-	var cindex *C.struct_Longtail_ContentIndex
-	errno := C.Longtail_ReadContentIndexFromBuffer(cBuffer, cSize, &cindex)
-	if errno != 0 {
-		return Longtail_ContentIndex{cContentIndex: nil}, int(errno)
-	}
-	return Longtail_ContentIndex{cContentIndex: cindex}, 0
-}
-
-// ReadContentIndex ...
-func ReadContentIndex(storageAPI Longtail_StorageAPI, path string) (Longtail_ContentIndex, int) {
-	cPath := C.CString(path)
-	defer C.free(unsafe.Pointer(cPath))
-	var cindex *C.struct_Longtail_ContentIndex
-	errno := C.Longtail_ReadContentIndex(storageAPI.cStorageAPI, cPath, &cindex)
-	if errno != 0 {
-		return Longtail_ContentIndex{cContentIndex: nil}, int(errno)
-	}
-	return Longtail_ContentIndex{cContentIndex: cindex}, 0
 }
 
 // CreateProgressAPI ...
@@ -1948,44 +1832,6 @@ func CreateMissingContent(
 		return Longtail_ContentIndex{cContentIndex: nil}, int(errno)
 	}
 	return Longtail_ContentIndex{cContentIndex: missingContentIndex}, 0
-}
-
-/*
-// GetExistingContent ...
-func GetExistingContent(
-	referenceContentIndex Longtail_ContentIndex,
-	contentIndex Longtail_ContentIndex) (Longtail_ContentIndex, int) {
-	var retargetedContentIndex *C.struct_Longtail_ContentIndex
-	errno := C.Longtail_GetExistingContent(referenceContentIndex.cContentIndex, contentIndex.cContentIndex, &retargetedContentIndex)
-	if errno != 0 {
-		return Longtail_ContentIndex{cContentIndex: nil}, int(errno)
-	}
-	return Longtail_ContentIndex{cContentIndex: retargetedContentIndex}, 0
-}
-*/
-// MergeContentIndex ...
-func MergeContentIndex(
-	jobAPI Longtail_JobAPI,
-	localContentIndex Longtail_ContentIndex,
-	remoteContentIndex Longtail_ContentIndex) (Longtail_ContentIndex, int) {
-	var mergedContentIndex *C.struct_Longtail_ContentIndex
-	errno := C.Longtail_MergeContentIndex(jobAPI.cJobAPI, localContentIndex.cContentIndex, remoteContentIndex.cContentIndex, &mergedContentIndex)
-	if errno != 0 {
-		return Longtail_ContentIndex{cContentIndex: nil}, int(errno)
-	}
-	return Longtail_ContentIndex{cContentIndex: mergedContentIndex}, 0
-}
-
-// AddContentIndex ...
-func AddContentIndex(
-	localContentIndex Longtail_ContentIndex,
-	remoteContentIndex Longtail_ContentIndex) (Longtail_ContentIndex, int) {
-	var mergedContentIndex *C.struct_Longtail_ContentIndex
-	errno := C.Longtail_AddContentIndex(localContentIndex.cContentIndex, remoteContentIndex.cContentIndex, &mergedContentIndex)
-	if errno != 0 {
-		return Longtail_ContentIndex{cContentIndex: nil}, int(errno)
-	}
-	return Longtail_ContentIndex{cContentIndex: mergedContentIndex}, 0
 }
 
 // WriteVersion ...
