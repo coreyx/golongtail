@@ -1263,18 +1263,25 @@ func showStoreIndex(storeIndexPath string, compact bool) ([]storeStat, []timeSta
 	readStoreIndexTime := time.Since(readStoreIndexStartTime)
 	timeStats = append(timeStats, timeStat{"Read store index", readStoreIndexTime})
 
+	blockTotalSize := uint64(0)
+	for b := uint32(0); b < storeIndex.GetBlockCount(); b++ {
+		blockTotalSize += uint64(storeIndex.GetBlockUncompressedSize(b))
+	}
+
 	if compact {
-		fmt.Printf("%s\t%d\t%s\t%d\t%d\n",
+		fmt.Printf("%s\t%d\t%s\t%d\t%d\t%d\n",
 			storeIndexPath,
 			storeIndex.GetVersion(),
 			hashIdentifierToString(storeIndex.GetHashIdentifier()),
 			storeIndex.GetBlockCount(),
-			storeIndex.GetChunkCount())
+			storeIndex.GetChunkCount(),
+			blockTotalSize)
 	} else {
 		fmt.Printf("Version:             %d\n", storeIndex.GetVersion())
 		fmt.Printf("Hash Identifier:     %s\n", hashIdentifierToString(storeIndex.GetHashIdentifier()))
 		fmt.Printf("Block Count:         %d   (%s)\n", storeIndex.GetBlockCount(), byteCountDecimal(uint64(storeIndex.GetBlockCount())))
 		fmt.Printf("Chunk Count:         %d   (%s)\n", storeIndex.GetChunkCount(), byteCountDecimal(uint64(storeIndex.GetChunkCount())))
+		fmt.Printf("Total Block Size:    %d   (%s)\n", blockTotalSize, byteCountDecimal(blockTotalSize))
 	}
 
 	return storeStats, timeStats, nil

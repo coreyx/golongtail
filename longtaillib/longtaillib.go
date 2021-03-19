@@ -676,6 +676,10 @@ func (storeIndex *Longtail_StoreIndex) GetChunkCount() uint32 {
 	return uint32(*storeIndex.cStoreIndex.m_ChunkCount)
 }
 
+func (storeIndex *Longtail_StoreIndex) GetBlockUncompressedSize(blockIndex uint32) uint32 {
+	return uint32(C.GetBlockUncompressedSize(storeIndex.cStoreIndex, C.uint32_t(blockIndex)))
+}
+
 func (storeIndex *Longtail_StoreIndex) GetBlockHashes() []uint64 {
 	size := int(C.Longtail_StoreIndex_GetBlockCount(storeIndex.cStoreIndex))
 	return carray2slice64(C.Longtail_StoreIndex_GetBlockHashes(storeIndex.cStoreIndex), size)

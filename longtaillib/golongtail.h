@@ -229,6 +229,17 @@ static void DisableMemtrace() {
     Longtail_MemTracer_Dispose();
 }
 
+static uint32_t GetBlockUncompressedSize(struct Longtail_StoreIndex* store_index, uint32_t block_index) {
+    uint32_t block_size = 0;
+    uint32_t chunk_count = *store_index->m_BlockChunkCounts;
+    uint32_t chunk_offset = *store_index->m_BlockChunksOffsets;
+    for (uint32_t c = 0; c < chunk_count; ++c) {
+        uint32_t chunk_size = store_index->m_ChunkSizes[chunk_offset + c];
+        block_size += chunk_size;
+    }
+    return block_size;
+}
+
 #ifdef __cplusplus
 }
 #endif
