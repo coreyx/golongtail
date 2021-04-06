@@ -649,7 +649,9 @@ func upSyncVersion(
 
 	indexStoreFlushComplete := &flushCompletionAPI{}
 	indexStoreFlushComplete.wg.Add(1)
-	errno = indexStore.Flush(longtaillib.CreateAsyncFlushAPI(indexStoreFlushComplete))
+	indexStoreFlushCompleteAPI := longtaillib.CreateAsyncFlushAPI(indexStoreFlushComplete)
+	defer indexStoreFlushCompleteAPI.Dispose()
+	errno = indexStore.Flush(indexStoreFlushCompleteAPI)
 	if errno != 0 {
 		indexStoreFlushComplete.wg.Done()
 		return storeStats, timeStats, errors.Wrapf(longtaillib.ErrnoToError(errno, longtaillib.ErrEIO), "validateVersion: indexStore.Flush: Failed for `%s` failed", blobStoreURI)
@@ -657,7 +659,9 @@ func upSyncVersion(
 
 	remoteStoreFlushComplete := &flushCompletionAPI{}
 	remoteStoreFlushComplete.wg.Add(1)
-	errno = remoteStore.Flush(longtaillib.CreateAsyncFlushAPI(remoteStoreFlushComplete))
+	remoteStoreFlushCompleteAPI := longtaillib.CreateAsyncFlushAPI(remoteStoreFlushComplete)
+	defer remoteStoreFlushCompleteAPI.Dispose()
+	errno = remoteStore.Flush(remoteStoreFlushCompleteAPI)
 	if errno != 0 {
 		remoteStoreFlushComplete.wg.Done()
 		return storeStats, timeStats, errors.Wrapf(longtaillib.ErrnoToError(errno, longtaillib.ErrEIO), "validateVersion: remoteStore.Flush: Failed for `%s` failed", blobStoreURI)

@@ -887,6 +887,13 @@ func (asyncCompleteAPI *Longtail_AsyncFlushAPI) OnComplete(errno int) {
 	C.Longtail_AsyncFlush_OnComplete(asyncCompleteAPI.cAsyncCompleteAPI, C.int(errno))
 }
 
+func (asyncCompleteAPI *Longtail_AsyncFlushAPI) Dispose() {
+	if asyncCompleteAPI.cAsyncCompleteAPI != nil {
+		C.Longtail_DisposeAPI(&asyncCompleteAPI.cAsyncCompleteAPI.m_API)
+		asyncCompleteAPI.cAsyncCompleteAPI = nil
+	}
+}
+
 // CreateFSBlockStore() ...
 func CreateFSBlockStore(jobAPI Longtail_JobAPI, storageAPI Longtail_StorageAPI, contentPath string, defaultMaxBlockSize uint32, defaultMaxChunksPerBlock uint32) Longtail_BlockStoreAPI {
 	cContentPath := C.CString(contentPath)
