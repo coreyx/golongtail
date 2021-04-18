@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/url"
+	"os"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -35,7 +36,7 @@ type s3BlobObject struct {
 // NewS3BlobStore ...
 func NewS3BlobStore(u *url.URL) (BlobStore, error) {
 	if u.Scheme != "s3" {
-		return nil, fmt.Errorf("invalid scheme '%s', expected 'gs'", u.Scheme)
+		return nil, fmt.Errorf("invalid scheme '%s', expected 's3'", u.Scheme)
 	}
 	prefix := u.Path
 	if len(u.Path) > 0 {
@@ -50,11 +51,38 @@ func NewS3BlobStore(u *url.URL) (BlobStore, error) {
 }
 
 func (blobStore *s3BlobStore) NewClient(ctx context.Context) (BlobClient, error) {
-	cfg, err := config.LoadDefaultConfig(ctx)
+
+	var cfg aws.Config
+	var err error
+	var region = "us-west-2"
+	_ = region
+	endpointOverride := os.Getenv("AWS_ENDPOINT_OVERRIDE")
+	regionOverride := os.Getenv("AWS_REGION")
+	
+	if (endpointOverride != "") {
+		// fmt.Println("AWS_ENDPOINT_OVERRIDE:", endpointOverride)
+		
+		if  (regionOverride != "") {
+			// fmt.Println("AWS_REGION:", regionOverride)
+			region = regionOverride
+		}
+		
+		cfg, err = config.LoadDefaultConfig(ctx,
+			config.WithEndpointResolver(
+				aws.EndpointResolverFunc(func(service, region string) (aws.Endpoint, error) {
+					return aws.Endpoint{URL: endpointOverride, SigningRegion: region}, nil
+				}),
+			),
+		)
+	} else {
+		cfg, err = config.LoadDefaultConfig(ctx)
+	}
+	
 	if err != nil {
 		log.Fatalf("unable to load SDK config, %v", err)
 	}
 	client := s3.NewFromConfig(cfg)
+	// log.Printf("created client, %c", client)
 	return &s3BlobClient{store: blobStore, ctx: ctx, client: client}, nil
 }
 
